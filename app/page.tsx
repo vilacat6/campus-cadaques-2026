@@ -64,18 +64,101 @@ export default async function HomePage() {
         </div>
 
         <div className="relative mx-auto max-w-5xl">
-          <div className="inline-flex rounded-full bg-white px-4 py-2 text-sm font-black uppercase tracking-wide text-[#C62828] shadow">
-            U.E. Cadaqués
+          <div className="flex flex-col gap-6 md:flex-row md:items-center">
+            <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-3xl bg-white p-3 shadow-xl md:h-32 md:w-32">
+              <img
+                src="/club/logo.png"
+                alt="Escut U.E. Cadaqués"
+                className="h-full w-full object-contain"
+              />
+            </div>
+
+            <div>
+              <div className="inline-flex rounded-full bg-white px-4 py-2 text-sm font-black uppercase tracking-wide text-[#C62828] shadow">
+                U.E. Cadaqués
+              </div>
+
+              <h1 className="mt-5 text-4xl font-black md:text-5xl">
+                Inscripció Campus de Futbol 2026
+              </h1>
+
+              <p className="mt-4 max-w-3xl text-lg text-red-50">
+                Formulari d’inscripció al Campus U.E. Cadaqués. Omple les dades
+                del menor, del tutor/a i selecciona les setmanes en què
+                participarà.
+              </p>
+            </div>
           </div>
+        </div>
+      </section>
 
-          <h1 className="mt-5 text-4xl font-black md:text-5xl">
-            Inscripció Campus de Futbol 2026
-          </h1>
+      <section className="px-6 pt-8">
+        <div className="mx-auto max-w-5xl">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow md:p-8">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+              <div className="max-w-3xl">
+                <p className="text-sm font-black uppercase tracking-wide text-[#C62828]">
+                  Informació del campus
+                </p>
 
-          <p className="mt-4 max-w-3xl text-lg text-red-50">
-            Formulari d’inscripció al Campus U.E. Cadaqués. Omple les dades del
-            menor, del tutor/a i selecciona les setmanes en què participarà.
-          </p>
+                <h2 className="mt-2 text-2xl font-black text-slate-900 md:text-3xl">
+                  3r Campus de Futbol de la U.E. Cadaqués
+                </h2>
+
+                <p className="mt-4 text-slate-700">
+                  El campus es farà de dilluns a divendres, de{" "}
+                  <strong>17:00 h a 19:00 h</strong>. Hi poden participar tots
+                  els nens i nenes nascuts/des entre els anys{" "}
+                  <strong>2012 i 2020</strong>.
+                </p>
+
+                <p className="mt-3 text-slate-700">
+                  Durant el campus es faran jocs d’iniciació al futbol i
+                  exercicis de tecnificació, organitzats en grups segons l’edat
+                  i el nivell dels participants. L’objectiu principal és que els
+                  nens i nenes gaudeixin jugant a futbol.
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-[#FDECEC] p-5 lg:min-w-64">
+                <p className="text-sm font-bold text-slate-600">
+                  Preu per setmana
+                </p>
+
+                <p className="mt-1 text-4xl font-black text-[#C62828]">
+                  60 €
+                </p>
+
+                <p className="mt-3 text-sm text-slate-700">
+                  El pagament es podrà fer en efectiu el primer dia del campus o
+                  bé mitjançant Bizum.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-black text-[#C62828]">Horari</p>
+                <p className="mt-1 text-sm text-slate-700">
+                  Dilluns a divendres, de 17:00 h a 19:00 h.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-black text-[#C62828]">Edats</p>
+                <p className="mt-1 text-sm text-slate-700">
+                  Nens i nenes nascuts/des entre 2012 i 2020.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-black text-[#C62828]">Assegurança</p>
+                <p className="mt-1 text-sm text-slate-700">
+                  Disposem d’assegurança d’accidents i responsabilitat civil.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -137,7 +220,7 @@ export default async function HomePage() {
 
                 <div>
                   <label className="mb-1 block text-sm font-bold text-slate-700">
-                    Població  
+                    Població / municipi
                   </label>
 
                   <input
