@@ -1,21 +1,29 @@
+import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
+
+type PageProps = {
+  params: Promise<{
+    id: string;
+  }>;
+};
 
 type Week = {
   id: string;
   name: string;
   start_date: string;
   end_date: string;
-  price: number | null;
-  max_places: number | null;
+  price: number | string | null;
   active: boolean | null;
+  max_participants: number | null;
 };
 
 type Registration = {
   id: string;
   participant_id: string;
-  price: number | null;
+  week_id: string;
+  price: number | string | null;
   payment_status: string | null;
 };
 
@@ -23,12 +31,13 @@ type Participant = {
   id: string;
   first_name: string;
   last_name: string;
-  birth_date: string;
+  birth_date: string | null;
   city: string | null;
   shirt_size: string | null;
-  medical_notes: string | null;
   allergies: string | null;
+  medical_notes: string | null;
   comments: string | null;
+  image_authorization: boolean | null;
 };
 
 type Tutor = {
@@ -37,21 +46,24 @@ type Tutor = {
   phone_1: string | null;
   phone_2: string | null;
   email: string | null;
-  dni: string | null;
 };
 
 type Payment = {
+  id: string;
   participant_id: string;
-  amount: number | null;
+  week_id: string | null;
+  registration_id: string | null;
+  amount: number | string | null;
+  payment_date: string | null;
+  payment_method: string | null;
+  notes: string | null;
 };
 
-type PageProps = {
-  params: Promise<{
-    id: string;
-  }>;
-};
+function formatDate(date: string | null) {
+  if (!date) {
+    return "-";
+  }
 
-function formatDate(date: string) {
   return new Intl.DateTimeFormat("ca-ES", {
     day: "2-digit",
     month: "2-digit",
@@ -59,9 +71,20 @@ function formatDate(date: string) {
   }).format(new Date(date));
 }
 
-function calculateAge(birthDate: string) {
-  const birth = new Date(birthDate);
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat("ca-ES", {
+    style: "currency",
+    currency: "EUR",
+  }).format(amount);
+}
+
+function calculateAge(birthDate: string | null) {
+  if (!birthDate) {
+    return null;
+  }
+
   const today = new Date();
+  const birth = new Date(birthDate);
 
   let age = today.getFullYear() - birth.getFullYear();
   const monthDifference = today.getMonth() - birth.getMonth();
@@ -70,421 +93,548 @@ function calculateAge(birthDate: string) {
     monthDifference < 0 ||
     (monthDifference === 0 && today.getDate() < birth.getDate())
   ) {
-    age--;
+    age -= 1;
   }
 
   return age;
 }
 
-function getPaymentStatus(totalAmount: number, totalPaid: number) {
-  if (totalAmount > 0 && totalPaid >= totalAmount) {
-    return "pagat";
-  }
+function isRegistrationPaid(registration: Registration, payment?: Payment) {
+  const status = String(registration.payment_status || "").toLowerCase();
 
-  if (totalPaid > 0) {
-    return "parcial";
-  }
-
-  return "pendent";
+  return (
+    status === "pagat" ||
+    status === "paid" ||
+    status === "cobrat" ||
+    Boolean(payment)
+  );
 }
 
-export default async function WeekParticipantsPage({ params }: PageProps) {
+export default async function AdminWeekDetailPage({ params }: PageProps) {
   const { id } = await params;
 
   const { data: weekData, error: weekError } = await supabaseAdmin
     .from("weeks")
-    .select("id, name, start_date, end_date, price, max_places, active")
+    .select("id, name, start_date, end_date, price, active, max_participants")
     .eq("id", id)
     .single();
+
+  if (weekError || !weekData) {
+    notFound();
+  }
+
+  const week = weekData as Week;
 
   const { data: registrationsData, error: registrationsError } =
     await supabaseAdmin
       .from("registrations")
-      .select("id, participant_id, price, payment_status")
+      .select("id, participant_id, week_id, price, payment_status")
       .eq("week_id", id);
-
-  if (weekError || !weekData) {
-    return (
-      <main className="min-h-screen bg-red-50 p-8">
-        <h1 className="text-3xl font-bold text-red-700">
-          No s’ha pogut carregar la setmana
-        </h1>
-
-        <pre className="mt-6 whitespace-pre-wrap rounded bg-white p-4 text-sm text-red-900">
-          {JSON.stringify(weekError, null, 2)}
-        </pre>
-
-        <a
-          href="/admin/weeks"
-          className="mt-6 inline-block rounded-xl bg-blue-800 px-5 py-3 font-bold text-white"
-        >
-          Tornar a setmanes
-        </a>
-      </main>
-    );
-  }
 
   if (registrationsError) {
     return (
-      <main className="min-h-screen bg-red-50 p-8">
-        <h1 className="text-3xl font-bold text-red-700">
-          Error carregant inscrits
-        </h1>
+      <main className="min-h-screen bg-slate-100 p-6">
+        <div className="mx-auto max-w-5xl rounded-3xl bg-white p-6 shadow">
+          <h1 className="text-2xl font-black text-red-700">
+            Error carregant les inscripcions
+          </h1>
 
-        <pre className="mt-6 whitespace-pre-wrap rounded bg-white p-4 text-sm text-red-900">
-          {JSON.stringify(registrationsError, null, 2)}
-        </pre>
+          <pre className="mt-4 whitespace-pre-wrap rounded-xl bg-red-50 p-4 text-sm text-red-900">
+            {JSON.stringify(registrationsError, null, 2)}
+          </pre>
 
-        <a
-          href="/admin/weeks"
-          className="mt-6 inline-block rounded-xl bg-blue-800 px-5 py-3 font-bold text-white"
-        >
-          Tornar a setmanes
-        </a>
+          <a
+            href="/admin/weeks"
+            className="mt-6 inline-flex rounded-xl bg-slate-900 px-4 py-2 font-bold text-white"
+          >
+            Tornar a setmanes
+          </a>
+        </div>
       </main>
     );
   }
 
-  const week = weekData as unknown as Week;
-  const registrations = (registrationsData || []) as unknown as Registration[];
+  const registrations = (registrationsData || []) as Registration[];
 
-  const participantIds = Array.from(
-    new Set(registrations.map((registration) => registration.participant_id))
+  const participantIds = registrations
+    .map((registration) => registration.participant_id)
+    .filter(Boolean);
+
+  const { data: participantsData } =
+    participantIds.length > 0
+      ? await supabaseAdmin
+          .from("participants")
+          .select(
+            "id, first_name, last_name, birth_date, city, shirt_size, allergies, medical_notes, comments, image_authorization"
+          )
+          .in("id", participantIds)
+      : { data: [] };
+
+  const { data: tutorsData } =
+    participantIds.length > 0
+      ? await supabaseAdmin
+          .from("tutors")
+          .select("participant_id, tutor_name, phone_1, phone_2, email")
+          .in("participant_id", participantIds)
+      : { data: [] };
+
+  const { data: paymentsData } =
+    registrations.length > 0
+      ? await supabaseAdmin
+          .from("payments")
+          .select(
+            "id, participant_id, week_id, registration_id, amount, payment_date, payment_method, notes"
+          )
+          .eq("week_id", id)
+      : { data: [] };
+
+  const participants = (participantsData || []) as Participant[];
+  const tutors = (tutorsData || []) as Tutor[];
+  const payments = (paymentsData || []) as Payment[];
+
+  const participantsById = participants.reduce<Record<string, Participant>>(
+    (acc, participant) => {
+      acc[participant.id] = participant;
+      return acc;
+    },
+    {}
   );
 
-  let participants: Participant[] = [];
-  let tutors: Tutor[] = [];
-  let payments: Payment[] = [];
+  const tutorsByParticipantId = tutors.reduce<Record<string, Tutor>>(
+    (acc, tutor) => {
+      acc[tutor.participant_id] = tutor;
+      return acc;
+    },
+    {}
+  );
 
-  if (participantIds.length > 0) {
-    const { data: participantsData, error: participantsError } =
-      await supabaseAdmin
-        .from("participants")
-        .select(
-          "id, first_name, last_name, birth_date, city, shirt_size, medical_notes, allergies, comments"
-        )
-        .in("id", participantIds);
+  const paymentsByRegistrationId = payments.reduce<Record<string, Payment>>(
+    (acc, payment) => {
+      if (payment.registration_id) {
+        acc[payment.registration_id] = payment;
+      }
 
-    const { data: tutorsData, error: tutorsError } = await supabaseAdmin
-      .from("tutors")
-      .select("participant_id, tutor_name, phone_1, phone_2, email, dni")
-      .in("participant_id", participantIds);
-
-    const { data: paymentsData, error: paymentsError } = await supabaseAdmin
-      .from("payments")
-      .select("participant_id, amount")
-      .in("participant_id", participantIds);
-
-    if (participantsError) {
-      console.error("Error carregant participants:", participantsError);
-    }
-
-    if (tutorsError) {
-      console.error("Error carregant tutors:", tutorsError);
-    }
-
-    if (paymentsError) {
-      console.error("Error carregant pagaments:", paymentsError);
-    }
-
-    participants = (participantsData || []) as unknown as Participant[];
-    tutors = (tutorsData || []) as unknown as Tutor[];
-    payments = (paymentsData || []) as unknown as Payment[];
-  }
-
-  function getParticipant(participantId: string) {
-    return participants.find((participant) => participant.id === participantId);
-  }
-
-  function getTutor(participantId: string) {
-    return tutors.find((tutor) => tutor.participant_id === participantId);
-  }
-
-  function getTotalPaid(participantId: string) {
-    return payments
-      .filter((payment) => payment.participant_id === participantId)
-      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-  }
+      return acc;
+    },
+    {}
+  );
 
   const sortedRegistrations = [...registrations].sort((a, b) => {
-    const participantA = getParticipant(a.participant_id);
-    const participantB = getParticipant(b.participant_id);
+    const participantA = participantsById[a.participant_id];
+    const participantB = participantsById[b.participant_id];
 
     const nameA = `${participantA?.last_name || ""} ${
       participantA?.first_name || ""
     }`;
-
     const nameB = `${participantB?.last_name || ""} ${
       participantB?.first_name || ""
     }`;
 
-    return nameA.localeCompare(nameB);
+    return nameA.localeCompare(nameB, "ca");
   });
 
-  const registeredCount = registrations.length;
-
-  const freePlaces =
-    week.max_places === null
-      ? null
-      : Math.max(week.max_places - registeredCount, 0);
-
-  const totalExpected = registrations.reduce(
-    (sum, registration) => sum + Number(registration.price || 0),
-    0
+  const paidRegistrations = registrations.filter((registration) =>
+    isRegistrationPaid(registration, paymentsByRegistrationId[registration.id])
   );
 
+  const pendingRegistrations = registrations.filter(
+    (registration) =>
+      !isRegistrationPaid(registration, paymentsByRegistrationId[registration.id])
+  );
+
+  const totalExpected = registrations.reduce((total, registration) => {
+    return total + Number(registration.price || 0);
+  }, 0);
+
+  const totalPaid = paidRegistrations.reduce((total, registration) => {
+    const payment = paymentsByRegistrationId[registration.id];
+
+    if (payment) {
+      return total + Number(payment.amount || 0);
+    }
+
+    return total + Number(registration.price || 0);
+  }, 0);
+
+  const totalPending = Math.max(totalExpected - totalPaid, 0);
+  const maxParticipants = week.max_participants || null;
+  const freePlaces =
+    maxParticipants !== null
+      ? Math.max(maxParticipants - registrations.length, 0)
+      : null;
+
   return (
-    <main className="min-h-screen bg-slate-100">
-      <section className="bg-blue-900 px-6 py-8 text-white">
-        <div className="mx-auto max-w-7xl">
-          <div className="flex flex-wrap gap-3">
-            <a
-              href="/admin/weeks"
-              className="rounded-xl bg-blue-800 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
-            >
-              ← Tornar a setmanes
-            </a>
-
-            <a
-              href="/admin"
-              className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-blue-900 hover:bg-blue-50"
-            >
-              Tornar al panell
-            </a>
-
-            <a
-              href={`/admin/weeks/${week.id}/groups`}
-              className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700"
-            >
-              Gestionar grups
-            </a>
-
-            <a
-              href={`/admin/weeks/${week.id}/attendance`}
-              className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white hover:bg-orange-600"
-            >
-              Control assistència
-            </a>
-
-            <a
-              href={`/admin/weeks/${week.id}/attendance-summary`}
-              className="rounded-xl bg-purple-600 px-4 py-2 text-sm font-bold text-white hover:bg-purple-700"
-            >
-              Resum assistència
-            </a>
-
-            <a
-              href={`/admin/weeks/${week.id}/print`}
-              className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-900"
-            >
-              Imprimir llistat
-            </a>
-          </div>
-
-          <h1 className="mt-4 text-4xl font-bold">{week.name}</h1>
-
-          <p className="mt-2 text-blue-100">
-            Del {formatDate(week.start_date)} al {formatDate(week.end_date)}
-          </p>
-        </div>
-      </section>
-
-      <section className="px-6 py-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-8 grid gap-4 md:grid-cols-4">
-            <div className="rounded-2xl bg-white p-6 shadow">
-              <p className="text-sm font-medium text-slate-500">
-                Inscrits aquesta setmana
+    <main className="min-h-screen bg-slate-100 p-6">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <header className="rounded-3xl bg-[#C62828] p-6 text-white shadow">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-black uppercase tracking-wide text-red-100">
+                Setmana del campus
               </p>
 
-              <p className="mt-2 text-4xl font-bold text-slate-900">
-                {registeredCount}
+              <h1 className="mt-1 text-3xl font-black">{week.name}</h1>
+
+              <p className="mt-2 text-red-50">
+                Del {formatDate(week.start_date)} al{" "}
+                {formatDate(week.end_date)}
               </p>
             </div>
 
-            <div className="rounded-2xl bg-white p-6 shadow">
-              <p className="text-sm font-medium text-slate-500">
-                Places màximes
-              </p>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href="/admin/weeks"
+                className="rounded-xl bg-white px-4 py-2 text-sm font-black text-[#C62828] shadow hover:bg-red-50"
+              >
+                Tornar a setmanes
+              </a>
 
-              <p className="mt-2 text-4xl font-bold text-slate-900">
-                {week.max_places ?? "—"}
-              </p>
-            </div>
+              <a
+                href={`/admin/weeks/${week.id}/attendance`}
+                className="rounded-xl border border-white/40 px-4 py-2 text-sm font-black text-white hover:bg-white/10"
+              >
+                Assistència
+              </a>
 
-            <div className="rounded-2xl bg-white p-6 shadow">
-              <p className="text-sm font-medium text-slate-500">
-                Places lliures
-              </p>
+              <a
+                href={`/admin/weeks/${week.id}/groups`}
+                className="rounded-xl border border-white/40 px-4 py-2 text-sm font-black text-white hover:bg-white/10"
+              >
+                Grups
+              </a>
 
-              <p className="mt-2 text-4xl font-bold text-green-700">
-                {freePlaces ?? "—"}
-              </p>
-            </div>
-
-            <div className="rounded-2xl bg-white p-6 shadow">
-              <p className="text-sm font-medium text-slate-500">
-                Ingressos previstos
-              </p>
-
-              <p className="mt-2 text-4xl font-bold text-slate-900">
-                {totalExpected.toFixed(2)} €
-              </p>
+              <a
+                href={`/admin/weeks/${week.id}/print`}
+                className="rounded-xl border border-white/40 px-4 py-2 text-sm font-black text-white hover:bg-white/10"
+              >
+                Imprimir
+              </a>
             </div>
           </div>
+        </header>
 
-          <div className="overflow-hidden rounded-2xl bg-white shadow">
-            <div className="border-b border-slate-200 p-6">
-              <h2 className="text-2xl font-bold text-slate-900">
-                Inscrits de la setmana
+        <section className="grid gap-4 md:grid-cols-5">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow">
+            <p className="text-sm font-bold text-slate-500">Inscrits</p>
+            <p className="mt-2 text-3xl font-black text-slate-900">
+              {registrations.length}
+              {maxParticipants !== null ? (
+                <span className="text-slate-400"> / {maxParticipants}</span>
+              ) : null}
+            </p>
+
+            {freePlaces !== null ? (
+              <p className="mt-1 text-xs font-bold text-slate-500">
+                {freePlaces} places lliures
+              </p>
+            ) : null}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow">
+            <p className="text-sm font-bold text-slate-500">Pagats</p>
+            <p className="mt-2 text-3xl font-black text-green-700">
+              {paidRegistrations.length}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow">
+            <p className="text-sm font-bold text-slate-500">Pendents</p>
+            <p className="mt-2 text-3xl font-black text-orange-700">
+              {pendingRegistrations.length}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow">
+            <p className="text-sm font-bold text-slate-500">Cobrat</p>
+            <p className="mt-2 text-3xl font-black text-green-700">
+              {formatCurrency(totalPaid)}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow">
+            <p className="text-sm font-bold text-slate-500">Pendent</p>
+            <p className="mt-2 text-3xl font-black text-orange-700">
+              {formatCurrency(totalPending)}
+            </p>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-2xl font-black text-[#C62828]">
+                Participants i pagaments
               </h2>
 
-              <p className="mt-1 text-slate-600">
-                Llistat ordenat alfabèticament.
+              <p className="mt-1 text-sm text-slate-500">
+                Des d’aquí pots veure qui està inscrit aquesta setmana i marcar
+                si el pagament ja s’ha rebut.
               </p>
             </div>
 
-            {sortedRegistrations.length === 0 ? (
-              <div className="p-6 text-slate-600">
-                Encara no hi ha cap inscrit en aquesta setmana.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-left text-sm">
-                  <thead className="bg-slate-50 text-slate-700">
-                    <tr>
-                      <th className="border-b p-4">Nen/a</th>
-                      <th className="border-b p-4">Edat</th>
-                      <th className="border-b p-4">Talla</th>
-                      <th className="border-b p-4">Tutor</th>
-                      <th className="border-b p-4">Contacte</th>
-                      <th className="border-b p-4">Observacions</th>
-                      <th className="border-b p-4">Pagament</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {sortedRegistrations.map((registration) => {
-                      const participant = getParticipant(
-                        registration.participant_id
-                      );
-
-                      const tutor = getTutor(registration.participant_id);
-                      const paid = getTotalPaid(registration.participant_id);
-
-                      const status = getPaymentStatus(
-                        Number(registration.price || 0),
-                        paid
-                      );
-
-                      if (!participant) {
-                        return (
-                          <tr key={registration.id}>
-                            <td className="border-b p-4" colSpan={7}>
-                              Participant no trobat
-                            </td>
-                          </tr>
-                        );
-                      }
-
-                      return (
-                        <tr key={registration.id} className="align-top">
-                          <td className="border-b p-4">
-                            <a
-                              href={`/admin/participants/${participant.id}`}
-                              className="font-semibold text-blue-800 hover:underline"
-                            >
-                              {participant.first_name} {participant.last_name}
-                            </a>
-
-                            <p className="mt-1 text-xs text-slate-500">
-                              {participant.city || "-"}
-                            </p>
-                          </td>
-
-                          <td className="border-b p-4">
-                            {calculateAge(participant.birth_date)} anys
-                          </td>
-
-                          <td className="border-b p-4">
-                            {participant.shirt_size || "-"}
-                          </td>
-
-                          <td className="border-b p-4">
-                            {tutor?.tutor_name || "-"}
-                          </td>
-
-                          <td className="border-b p-4">
-                            <p>{tutor?.phone_1 || "-"}</p>
-
-                            {tutor?.phone_2 && (
-                              <p className="text-slate-500">
-                                {tutor.phone_2}
-                              </p>
-                            )}
-
-                            <p className="text-slate-500">
-                              {tutor?.email || "-"}
-                            </p>
-                          </td>
-
-                          <td className="border-b p-4">
-                            {participant.allergies && (
-                              <p className="mb-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                                Al·lèrgies: {participant.allergies}
-                              </p>
-                            )}
-
-                            {participant.medical_notes && (
-                              <p className="mb-1 rounded bg-red-50 px-2 py-1 text-xs text-red-800">
-                                Mèdic: {participant.medical_notes}
-                              </p>
-                            )}
-
-                            {participant.comments && (
-                              <p className="rounded bg-slate-50 px-2 py-1 text-xs text-slate-700">
-                                {participant.comments}
-                              </p>
-                            )}
-
-                            {!participant.allergies &&
-                              !participant.medical_notes &&
-                              !participant.comments && (
-                                <span className="text-slate-500">-</span>
-                              )}
-                          </td>
-
-                          <td className="border-b p-4">
-                            <p className="font-semibold">
-                              {Number(registration.price || 0).toFixed(2)} €
-                            </p>
-
-                            <p className="mt-1 text-xs text-slate-500">
-                              Pagat total: {paid.toFixed(2)} €
-                            </p>
-
-                            <p
-                              className={`mt-1 inline-block rounded px-2 py-1 text-xs font-bold ${
-                                status === "pagat"
-                                  ? "bg-green-100 text-green-800"
-                                  : status === "parcial"
-                                    ? "bg-orange-100 text-orange-800"
-                                    : "bg-slate-100 text-slate-700"
-                              }`}
-                            >
-                              {status}
-                            </p>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <div className="rounded-2xl bg-[#FDECEC] px-4 py-3 text-sm font-black text-[#C62828]">
+              Preu setmana: {formatCurrency(Number(week.price || 0))}
+            </div>
           </div>
-        </div>
-      </section>
+
+          {sortedRegistrations.length === 0 ? (
+            <div className="mt-6 rounded-2xl bg-slate-50 p-6 text-center text-slate-500">
+              Encara no hi ha cap participant inscrit en aquesta setmana.
+            </div>
+          ) : (
+            <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
+              <div className="hidden grid-cols-12 gap-3 bg-slate-100 px-4 py-3 text-xs font-black uppercase tracking-wide text-slate-500 md:grid">
+                <div className="col-span-3">Participant</div>
+                <div className="col-span-2">Tutor/a</div>
+                <div className="col-span-2">Contacte</div>
+                <div className="col-span-1">Import</div>
+                <div className="col-span-2">Estat</div>
+                <div className="col-span-2 text-right">Acció</div>
+              </div>
+
+              <div className="divide-y divide-slate-200 bg-white">
+                {sortedRegistrations.map((registration) => {
+                  const participant = participantsById[registration.participant_id];
+                  const tutor = tutorsByParticipantId[registration.participant_id];
+                  const payment = paymentsByRegistrationId[registration.id];
+                  const isPaid = isRegistrationPaid(registration, payment);
+                  const age = calculateAge(participant?.birth_date || null);
+
+                  return (
+                    <article
+                      key={registration.id}
+                      className="grid gap-4 px-4 py-4 md:grid-cols-12 md:items-center"
+                    >
+                      <div className="md:col-span-3">
+                        <a
+                          href={`/admin/participants/${registration.participant_id}`}
+                          className="font-black text-slate-900 hover:text-[#C62828]"
+                        >
+                          {participant
+                            ? `${participant.first_name} ${participant.last_name}`
+                            : "Participant no trobat"}
+                        </a>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          {age !== null ? `${age} anys` : "Edat no disponible"}
+                          {participant?.shirt_size
+                            ? ` · Samarreta ${participant.shirt_size}`
+                            : ""}
+                        </p>
+
+                        {participant?.image_authorization === false ? (
+                          <p className="mt-1 inline-flex rounded-full bg-red-50 px-2 py-1 text-xs font-black text-red-700">
+                            No fotos
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <p className="text-sm font-bold text-slate-700">
+                          {tutor?.tutor_name || "-"}
+                        </p>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <p className="text-sm text-slate-700">
+                          {tutor?.phone_1 || "-"}
+                        </p>
+
+                        {tutor?.email ? (
+                          <p className="mt-1 break-all text-xs text-slate-500">
+                            {tutor.email}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="md:col-span-1">
+                        <p className="font-black text-slate-900">
+                          {formatCurrency(Number(registration.price || 0))}
+                        </p>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        {isPaid ? (
+                          <div>
+                            <span className="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-black text-green-800">
+                              Pagat
+                            </span>
+
+                            {payment ? (
+                              <p className="mt-2 text-xs text-slate-500">
+                                {payment.payment_method || "No indicat"} ·{" "}
+                                {formatDate(payment.payment_date)}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-black text-orange-800">
+                            Pendent
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="md:col-span-2">
+                        {isPaid ? (
+                          <form
+                            action="/api/weeks/payment"
+                            method="POST"
+                            className="flex justify-start md:justify-end"
+                          >
+                            <input
+                              type="hidden"
+                              name="action"
+                              value="mark_pending"
+                            />
+                            <input
+                              type="hidden"
+                              name="registration_id"
+                              value={registration.id}
+                            />
+                            <input
+                              type="hidden"
+                              name="participant_id"
+                              value={registration.participant_id}
+                            />
+                            <input
+                              type="hidden"
+                              name="week_id"
+                              value={week.id}
+                            />
+
+                            <button
+                              type="submit"
+                              className="rounded-xl bg-white px-3 py-2 text-xs font-black text-orange-700 ring-1 ring-orange-200 hover:bg-orange-50"
+                            >
+                              Marcar pendent
+                            </button>
+                          </form>
+                        ) : (
+                          <form
+                            action="/api/weeks/payment"
+                            method="POST"
+                            className="flex flex-col gap-2 md:items-end"
+                          >
+                            <input
+                              type="hidden"
+                              name="action"
+                              value="mark_paid"
+                            />
+                            <input
+                              type="hidden"
+                              name="registration_id"
+                              value={registration.id}
+                            />
+                            <input
+                              type="hidden"
+                              name="participant_id"
+                              value={registration.participant_id}
+                            />
+                            <input
+                              type="hidden"
+                              name="week_id"
+                              value={week.id}
+                            />
+
+                            <select
+                              name="payment_method"
+                              defaultValue="Bizum"
+                              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold outline-none focus:border-[#C62828] focus:ring-2 focus:ring-[#FDECEC] md:w-28"
+                            >
+                              <option value="Bizum">Bizum</option>
+                              <option value="Efectiu">Efectiu</option>
+                              <option value="Targeta">Targeta</option>
+                              <option value="Transferència">
+                                Transferència
+                              </option>
+                              <option value="Altres">Altres</option>
+                            </select>
+
+                            <button
+                              type="submit"
+                              className="rounded-xl bg-green-700 px-3 py-2 text-xs font-black text-white shadow hover:bg-green-800"
+                            >
+                              Marcar pagat
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow">
+          <h2 className="text-2xl font-black text-[#C62828]">
+            Observacions importants
+          </h2>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {sortedRegistrations
+              .map((registration) => participantsById[registration.participant_id])
+              .filter((participant) => {
+                return (
+                  participant?.allergies ||
+                  participant?.medical_notes ||
+                  participant?.comments ||
+                  participant?.image_authorization === false
+                );
+              })
+              .map((participant) => (
+                <div
+                  key={participant.id}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                >
+                  <p className="font-black text-slate-900">
+                    {participant.first_name} {participant.last_name}
+                  </p>
+
+                  {participant.allergies ? (
+                    <p className="mt-2 text-sm text-red-700">
+                      <strong>Al·lèrgies:</strong> {participant.allergies}
+                    </p>
+                  ) : null}
+
+                  {participant.medical_notes ? (
+                    <p className="mt-2 text-sm text-orange-700">
+                      <strong>Info mèdica:</strong> {participant.medical_notes}
+                    </p>
+                  ) : null}
+
+                  {participant.comments ? (
+                    <p className="mt-2 text-sm text-slate-700">
+                      <strong>Comentaris:</strong> {participant.comments}
+                    </p>
+                  ) : null}
+
+                  {participant.image_authorization === false ? (
+                    <p className="mt-2 text-sm font-black text-red-700">
+                      No autoritza l’ús d’imatges.
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+
+            {sortedRegistrations.filter((registration) => {
+              const participant = participantsById[registration.participant_id];
+
+              return (
+                participant?.allergies ||
+                participant?.medical_notes ||
+                participant?.comments ||
+                participant?.image_authorization === false
+              );
+            }).length === 0 ? (
+              <p className="text-sm text-slate-500">
+                No consten observacions importants en aquesta setmana.
+              </p>
+            ) : null}
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
