@@ -367,13 +367,14 @@ export default async function AdminWeekDetailPage({ params }: PageProps) {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Des d’aquí pots veure qui està inscrit aquesta setmana i marcar
-                si el pagament ja s’ha rebut.
+                Des d’aquí pots veure qui està inscrit aquesta setmana, modificar
+                el preu aplicat a cada nen i marcar si el pagament ja s’ha
+                rebut.
               </p>
             </div>
 
             <div className="rounded-2xl bg-[#FDECEC] px-4 py-3 text-sm font-black text-[#C62828]">
-              Preu setmana: {formatCurrency(Number(week.price || 0))}
+              Preu base setmana: {formatCurrency(Number(week.price || 0))}
             </div>
           </div>
 
@@ -387,8 +388,8 @@ export default async function AdminWeekDetailPage({ params }: PageProps) {
                 <div className="col-span-3">Participant</div>
                 <div className="col-span-2">Tutor/a</div>
                 <div className="col-span-2">Contacte</div>
-                <div className="col-span-1">Import</div>
-                <div className="col-span-2">Estat</div>
+                <div className="col-span-2">Preu aplicat</div>
+                <div className="col-span-1">Estat</div>
                 <div className="col-span-2 text-right">Acció</div>
               </div>
 
@@ -447,13 +448,50 @@ export default async function AdminWeekDetailPage({ params }: PageProps) {
                         ) : null}
                       </div>
 
-                      <div className="md:col-span-1">
-                        <p className="font-black text-slate-900">
-                          {formatCurrency(Number(registration.price || 0))}
-                        </p>
+                      <div className="md:col-span-2">
+                        <form
+                          action="/api/weeks/registration-price"
+                          method="POST"
+                          className="flex flex-col gap-2"
+                        >
+                          <input
+                            type="hidden"
+                            name="registration_id"
+                            value={registration.id}
+                          />
+
+                          <input
+                            type="hidden"
+                            name="week_id"
+                            value={week.id}
+                          />
+
+                          <input
+                            type="number"
+                            name="price"
+                            min="0"
+                            step="0.01"
+                            defaultValue={Number(registration.price || 0)}
+                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold outline-none focus:border-[#C62828] focus:ring-2 focus:ring-[#FDECEC]"
+                          />
+
+                          <button
+                            type="submit"
+                            className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-black text-white shadow hover:bg-slate-700"
+                          >
+                            Guardar preu
+                          </button>
+
+                          {payment ? (
+                            <p className="text-xs font-semibold text-slate-500">
+                              Si canvies el preu, també s’actualitza el pagament
+                              vinculat.
+                            </p>
+                          ) : null}
+                        </form>
                       </div>
 
-                      <div className="md:col-span-2">
+                      <div className="md:col-span-1">
                         {isPaid ? (
                           <div>
                             <span className="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-black text-green-800">
@@ -600,7 +638,8 @@ export default async function AdminWeekDetailPage({ params }: PageProps) {
 
                   {participant.medical_notes ? (
                     <p className="mt-2 text-sm text-orange-700">
-                      <strong>Info mèdica:</strong> {participant.medical_notes}
+                      <strong>Info mèdica:</strong>{" "}
+                      {participant.medical_notes}
                     </p>
                   ) : null}
 
